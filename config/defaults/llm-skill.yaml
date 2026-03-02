@@ -1,0 +1,4 @@
+format: markdown
+entrypoint: prompts/skill.md
+examples_dir: examples
+test_command: python -m pytest

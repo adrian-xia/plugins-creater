@@ -1,0 +1,9 @@
+project_name: plugins-creater
+output_root: plugins
+template_root: templates
+registry_file: registry/index.json
+
+defaults:
+  owner: adrian
+  license: MIT
+  language: zh-CN

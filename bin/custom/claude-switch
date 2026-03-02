@@ -1,0 +1,203 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+
+DEFAULT_SETTINGS_PATH=".claude/settings.json"
+DEFAULT_LOCAL_CONFIG="${PROJECT_ROOT}/config/claude-switch/profiles.local.json"
+DEFAULT_SHARED_CONFIG="${PROJECT_ROOT}/config/claude-switch/profiles.json"
+
+ACTION=""
+PROFILE=""
+SETTINGS_PATH="${DEFAULT_SETTINGS_PATH}"
+CONFIG_PATH_OVERRIDE=""
+
+print_help() {
+  cat <<'EOF'
+Usage:
+  claude-switch list [--config <path>]
+  claude-switch use <profile> [--settings <path>] [--config <path>]
+  claude-switch <profile> [--settings <path>] [--config <path>]
+
+Description:
+  Switches ANTHROPIC_BASE_URL and ANTHROPIC_AUTH_TOKEN in .claude/settings.json
+  using preconfigured profiles.
+
+Examples:
+  claude-switch list
+  claude-switch official
+  claude-switch use proxy-main --settings /tmp/settings.json
+  claude-switch use official --config ./config/claude-switch/profiles.local.json
+EOF
+}
+
+fail() {
+  printf 'Error: %s\n' "$1" >&2
+  exit 1
+}
+
+resolve_config_path() {
+  if [ -n "${CONFIG_PATH_OVERRIDE}" ]; then
+    printf '%s' "${CONFIG_PATH_OVERRIDE}"
+    return
+  fi
+
+  if [ -f "${DEFAULT_LOCAL_CONFIG}" ]; then
+    printf '%s' "${DEFAULT_LOCAL_CONFIG}"
+    return
+  fi
+
+  printf '%s' "${DEFAULT_SHARED_CONFIG}"
+}
+
+if [ "$#" -eq 0 ]; then
+  print_help
+  exit 1
+fi
+
+case "$1" in
+  -h|--help)
+    print_help
+    exit 0
+    ;;
+  list)
+    ACTION="list"
+    shift
+    ;;
+  use)
+    ACTION="use"
+    shift
+    if [ "$#" -eq 0 ]; then
+      fail "Missing profile. Use 'claude-switch list' to view profiles."
+    fi
+    PROFILE="$1"
+    shift
+    ;;
+  *)
+    ACTION="use"
+    PROFILE="$1"
+    shift
+    ;;
+esac
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --settings)
+      shift
+      if [ "$#" -eq 0 ]; then
+        fail "Missing value after --settings"
+      fi
+      SETTINGS_PATH="$1"
+      shift
+      ;;
+    --config)
+      shift
+      if [ "$#" -eq 0 ]; then
+        fail "Missing value after --config"
+      fi
+      CONFIG_PATH_OVERRIDE="$1"
+      shift
+      ;;
+    -h|--help)
+      print_help
+      exit 0
+      ;;
+    *)
+      fail "Unknown argument: $1"
+      ;;
+  esac
+done
+
+CONFIG_PATH="$(resolve_config_path)"
+
+if [ ! -f "${CONFIG_PATH}" ]; then
+  fail "Config file not found: ${CONFIG_PATH}"
+fi
+
+if [ "${ACTION}" = "list" ]; then
+  python3 - "${CONFIG_PATH}" <<'PY'
+import json
+import pathlib
+import sys
+
+config_path = pathlib.Path(sys.argv[1])
+
+try:
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+except json.JSONDecodeError as exc:
+    raise SystemExit(f"Invalid JSON in config file: {config_path} ({exc})")
+
+profiles = config.get("profiles")
+if not isinstance(profiles, dict) or not profiles:
+    raise SystemExit(f"No profiles found in config file: {config_path}")
+
+for profile in sorted(profiles.keys()):
+    print(profile)
+PY
+  exit 0
+fi
+
+python3 - "${CONFIG_PATH}" "${PROFILE}" "${SETTINGS_PATH}" <<'PY'
+import json
+import pathlib
+import sys
+
+config_path = pathlib.Path(sys.argv[1])
+profile_name = sys.argv[2]
+settings_path = pathlib.Path(sys.argv[3])
+
+try:
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+except json.JSONDecodeError as exc:
+    raise SystemExit(f"Invalid JSON in config file: {config_path} ({exc})")
+
+profiles = config.get("profiles")
+if not isinstance(profiles, dict):
+    raise SystemExit(f"Invalid config format: missing object field 'profiles' in {config_path}")
+
+profile = profiles.get(profile_name)
+if not isinstance(profile, dict):
+    known = ", ".join(sorted(profiles.keys())) or "(none)"
+    raise SystemExit(f"Unknown profile '{profile_name}'. Available: {known}")
+
+base_url = profile.get("ANTHROPIC_BASE_URL")
+auth_token = profile.get("ANTHROPIC_AUTH_TOKEN")
+
+if not isinstance(base_url, str) or not base_url:
+    raise SystemExit(
+        f"Profile '{profile_name}' missing required string field 'ANTHROPIC_BASE_URL'"
+    )
+
+if not isinstance(auth_token, str) or not auth_token:
+    raise SystemExit(
+        f"Profile '{profile_name}' missing required string field 'ANTHROPIC_AUTH_TOKEN'"
+    )
+
+if settings_path.exists():
+    try:
+        settings = json.loads(settings_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise SystemExit(f"Invalid JSON in settings file: {settings_path} ({exc})")
+
+    if not isinstance(settings, dict):
+        raise SystemExit(f"Settings file root must be an object: {settings_path}")
+else:
+    settings = {}
+
+env = settings.get("env")
+if env is None or not isinstance(env, dict):
+    env = {}
+
+env["ANTHROPIC_BASE_URL"] = base_url
+env["ANTHROPIC_AUTH_TOKEN"] = auth_token
+settings["env"] = env
+
+settings_path.parent.mkdir(parents=True, exist_ok=True)
+settings_path.write_text(json.dumps(settings, indent=2) + "\n", encoding="utf-8")
+
+print(f"Switched to profile: {profile_name}")
+print(f"Updated file: {settings_path}")
+print(f"ANTHROPIC_BASE_URL: {base_url}")
+print("ANTHROPIC_AUTH_TOKEN: [hidden]")
+PY

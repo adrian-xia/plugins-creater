@@ -1,0 +1,6 @@
+#!/usr/bin/env bats
+
+@test "{{plugin_name}} 冒烟测试" {
+  run bash src/main.sh
+  [ "$status" -eq 0 ]
+}

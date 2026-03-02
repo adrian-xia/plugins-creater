@@ -1,0 +1,15 @@
+types:
+  shell-script:
+    template_dir: templates/shell-script
+    output_dir: plugins/shell
+    generator: shell_script
+
+  agent-tool:
+    template_dir: templates/agent-tool
+    output_dir: plugins/agents
+    generator: agent_tool
+
+  llm-skill:
+    template_dir: templates/llm-skill
+    output_dir: plugins/skills
+    generator: llm_skill

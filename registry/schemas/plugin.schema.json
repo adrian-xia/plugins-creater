@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "插件",
+  "type": "object",
+  "required": ["name", "type", "version"],
+  "properties": {
+    "name": {"type": "string"},
+    "type": {"type": "string"},
+    "version": {"type": "string"},
+    "entrypoint": {"type": "string"}
+  },
+  "additionalProperties": true
+}

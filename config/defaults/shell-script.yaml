@@ -1,0 +1,3 @@
+runtime: bash
+entrypoint: src/main.sh
+test_command: bats tests

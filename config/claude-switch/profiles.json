@@ -1,0 +1,16 @@
+{
+  "profiles": {
+    "official": {
+      "ANTHROPIC_BASE_URL": "https://api.anthropic.com",
+      "ANTHROPIC_AUTH_TOKEN": "replace-with-your-official-token"
+    },
+    "proxy-main": {
+      "ANTHROPIC_BASE_URL": "https://your-proxy-main.example.com",
+      "ANTHROPIC_AUTH_TOKEN": "replace-with-your-proxy-main-token"
+    },
+    "proxy-backup": {
+      "ANTHROPIC_BASE_URL": "https://your-proxy-backup.example.com",
+      "ANTHROPIC_AUTH_TOKEN": "replace-with-your-proxy-backup-token"
+    }
+  }
+}

@@ -1,0 +1,170 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+
+IMAGE_NAME="plugins-creater/testbox:alpine"
+CONTAINER_NAME="plugins-creater-testbox"
+CPU_LIMIT="0.50"
+MEM_LIMIT="256m"
+PIDS_LIMIT="128"
+
+print_help() {
+  cat <<'EOF'
+Usage:
+  testbox start
+  testbox stop
+  testbox status
+  testbox exec <command>
+  testbox shell
+  testbox help
+
+Description:
+  Minimal Docker test container for local tool testing.
+  It is designed to stay stopped when idle.
+
+Defaults:
+  image: plugins-creater/testbox:alpine
+  container: plugins-creater-testbox
+  limits: --cpus=0.50 --memory=256m --pids-limit=128
+  mount: <project-root> -> /workspace
+EOF
+}
+
+fail() {
+  printf 'Error: %s\n' "$1" >&2
+  exit 1
+}
+
+container_id() {
+  docker ps -aq -f "name=^/${CONTAINER_NAME}$"
+}
+
+container_exists() {
+  [ -n "$(container_id)" ]
+}
+
+container_running() {
+  if ! container_exists; then
+    return 1
+  fi
+  [ "$(docker inspect -f '{{.State.Running}}' "${CONTAINER_NAME}")" = "true" ]
+}
+
+container_image() {
+  docker inspect -f '{{.Config.Image}}' "${CONTAINER_NAME}"
+}
+
+ensure_image() {
+  if docker image inspect "${IMAGE_NAME}" >/dev/null 2>&1; then
+    return
+  fi
+
+  if ! docker build \
+    -t "${IMAGE_NAME}" \
+    -f "${PROJECT_ROOT}/docker/testbox/Dockerfile" \
+    "${PROJECT_ROOT}"; then
+    fail "Unable to build '${IMAGE_NAME}'. Please check Docker network access and retry."
+  fi
+}
+
+create_container() {
+  docker run -d \
+    --name "${CONTAINER_NAME}" \
+    --cpus "${CPU_LIMIT}" \
+    --memory "${MEM_LIMIT}" \
+    --pids-limit "${PIDS_LIMIT}" \
+    --restart "no" \
+    --workdir "/workspace" \
+    -v "${PROJECT_ROOT}:/workspace" \
+    "${IMAGE_NAME}" >/dev/null
+}
+
+start_container() {
+  ensure_image
+
+  if container_exists; then
+    existing_image="$(container_image)"
+    if [ "${existing_image}" != "${IMAGE_NAME}" ]; then
+      fail "Container '${CONTAINER_NAME}' uses unexpected image '${existing_image}'. Remove it and run start again."
+    fi
+
+    if container_running; then
+      printf 'Already running: %s\n' "${CONTAINER_NAME}"
+      return
+    fi
+
+    docker start "${CONTAINER_NAME}" >/dev/null
+    printf 'Started: %s\n' "${CONTAINER_NAME}"
+    return
+  fi
+
+  create_container
+  printf 'Created and started: %s\n' "${CONTAINER_NAME}"
+}
+
+stop_container() {
+  if ! container_exists; then
+    printf 'Not created: %s\n' "${CONTAINER_NAME}"
+    return
+  fi
+
+  if ! container_running; then
+    printf 'Already stopped: %s\n' "${CONTAINER_NAME}"
+    return
+  fi
+
+  docker stop "${CONTAINER_NAME}" >/dev/null
+  printf 'Stopped: %s\n' "${CONTAINER_NAME}"
+}
+
+status_container() {
+  if ! container_exists; then
+    printf 'Status: not-created | Name: %s\n' "${CONTAINER_NAME}"
+    return
+  fi
+
+  docker inspect -f 'Status: {{.State.Status}} | Name: {{.Name}} | Image: {{.Config.Image}}' "${CONTAINER_NAME}"
+}
+
+exec_container() {
+  if [ "$#" -eq 0 ]; then
+    fail "Missing command for exec"
+  fi
+
+  start_container >/dev/null
+  docker exec "${CONTAINER_NAME}" sh -lc "$*"
+}
+
+shell_container() {
+  start_container >/dev/null
+  docker exec -it "${CONTAINER_NAME}" sh
+}
+
+ACTION="${1:-help}"
+
+case "${ACTION}" in
+  start)
+    start_container
+    ;;
+  stop)
+    stop_container
+    ;;
+  status)
+    status_container
+    ;;
+  exec)
+    shift
+    exec_container "$@"
+    ;;
+  shell)
+    shell_container
+    ;;
+  help|-h|--help)
+    print_help
+    ;;
+  *)
+    fail "Unknown action: ${ACTION}. Use 'testbox help'"
+    ;;
+esac

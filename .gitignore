@@ -1,0 +1,26 @@
+# Python 相关
+__pycache__/
+*.py[cod]
+*.so
+.venv/
+venv/
+
+# 测试相关
+.pytest_cache/
+.coverage
+htmlcov/
+
+# 编辑器相关
+.DS_Store
+.idea/
+.vscode/
+
+# 构建与临时文件
+build/
+dist/
+*.log
+tmp/
+
+# 本地敏感配置
+config/claude-switch/profiles.local.json
+.claude/settings.json

@@ -1,0 +1,4 @@
+runtime: python
+entrypoint: src/tool.py
+prompt_dir: prompts
+test_command: python -m pytest
