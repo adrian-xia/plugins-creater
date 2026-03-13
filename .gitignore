@@ -1,30 +1,13 @@
-# Python 相关
-__pycache__/
-*.py[cod]
-*.so
-.venv/
-venv/
-
-# 测试相关
-.pytest_cache/
-.coverage
-htmlcov/
-
 # 编辑器相关
 .DS_Store
 .idea/
 .vscode/
 
-# 构建与临时文件
-build/
-dist/
+# 临时文件
 *.log
 tmp/
 
-# 本地敏感配置
-.claude/settings.json
-
-# Tool-specific ignores
-tools/codex-switch/target/
-tools/codex-switch/Cargo.lock
-tools/*/config/*.local.json
+# 工具特定忽略
+codex-switch/target/
+codex-switch/Cargo.lock
+*/config/*.local.json
