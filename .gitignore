@@ -22,5 +22,9 @@ dist/
 tmp/
 
 # 本地敏感配置
-config/claude-switch/profiles.local.json
 .claude/settings.json
+
+# Tool-specific ignores
+tools/codex-switch/target/
+tools/codex-switch/Cargo.lock
+tools/*/config/*.local.json

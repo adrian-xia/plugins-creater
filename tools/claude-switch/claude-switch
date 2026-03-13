@@ -1,12 +1,23 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SOURCE_PATH="${BASH_SOURCE[0]}"
+while [ -L "${SOURCE_PATH}" ]; do
+  SOURCE_DIR="$(cd -P "$(dirname "${SOURCE_PATH}")" && pwd)"
+  SOURCE_PATH="$(readlink "${SOURCE_PATH}")"
+  case "${SOURCE_PATH}" in
+    /*) ;;
+    *) SOURCE_PATH="${SOURCE_DIR}/${SOURCE_PATH}" ;;
+  esac
+done
+
+SCRIPT_DIR="$(cd -P "$(dirname "${SOURCE_PATH}")" && pwd)"
+TOOL_DIR="${SCRIPT_DIR}"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
-DEFAULT_SETTINGS_PATH=".claude/settings.json"
-DEFAULT_LOCAL_CONFIG="${PROJECT_ROOT}/config/claude-switch/profiles.local.json"
-DEFAULT_SHARED_CONFIG="${PROJECT_ROOT}/config/claude-switch/profiles.json"
+DEFAULT_SETTINGS_PATH="${HOME}/.claude/settings.json"
+DEFAULT_LOCAL_CONFIG="${TOOL_DIR}/config/profiles.local.json"
+DEFAULT_SHARED_CONFIG="${TOOL_DIR}/config/profiles.json"
 
 ACTION=""
 PROFILE=""
@@ -21,7 +32,7 @@ Usage:
   claude-switch <profile> [--settings <path>] [--config <path>]
 
 Description:
-  Switches ANTHROPIC_BASE_URL and ANTHROPIC_AUTH_TOKEN in .claude/settings.json
+  Switches ANTHROPIC_BASE_URL and ANTHROPIC_AUTH_TOKEN in ~/.claude/settings.json
   using preconfigured profiles.
 
 Examples:

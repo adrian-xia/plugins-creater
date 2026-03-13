@@ -10,6 +10,8 @@
 4. 后续打包安装到系统 `PATH` 时，优先基于 `bin/custom/tools.list`。
 5. 已实现的历史内容可保留，不做回滚。
 6. 后续执行中避免过度实现，优先严格对齐当次明确需求。
+7. 安装策略采用固定目录安装，不做多版本累积目录。
+8. 重复安装不覆盖已有配置文件，安装后配置可手动修改。
 
 ## 本次新增与确认
 
@@ -26,6 +28,10 @@
 3. `bin/custom/tools.list` 当前内容：
    - `claude-switch`
    - `testbox`
+4. 已提供一键安装脚本：`scripts/install-custom.sh`
+   - 固定目录安装到 `~/.local/opt/plugins-creater`
+   - 命令软链到 `~/.local/bin`
+   - 重复安装不覆盖已有配置文件
 
 ## 纠偏记录
 

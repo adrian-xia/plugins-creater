@@ -21,7 +21,11 @@
 ├── scripts/
 ├── src/
 ├── templates/
-└── tests/
+├── tests/
+└── tools/          # 自定义工具集合
+    ├── claude-switch/
+    ├── codex-switch/
+    └── testbox/
 ```
 
 ## 快速开始
@@ -32,15 +36,28 @@
 
 `<type>` 的可选值定义在 `config/plugin-types.yaml`。
 
-## Claude 快速切换命令
+## 工具管理
 
-- 列出预设：`./bin/custom/claude-switch list`
-- 切换预设：`./bin/custom/claude-switch <profile>`
-- 说明文档：`docs/guides/claude-switch.md`
+### 列出所有工具
 
-## Docker 测试容器
+```bash
+make list-tools
+```
 
-- 启动容器：`./bin/custom/testbox start`
-- 执行测试命令：`./bin/custom/testbox exec "<command>"`
-- 关闭容器：`./bin/custom/testbox stop`
-- 说明文档：`docs/guides/testbox.md`
+### 安装工具
+
+```bash
+# 安装所有工具
+make install-tools
+
+# 安装指定工具
+make install-tools tool=claude-switch
+```
+
+### 可用工具
+
+- **claude-switch**: Claude Code 配置快速切换工具
+- **codex-switch**: Codex 认证配置切换工具（Rust 实现）
+- **testbox**: Docker 测试容器管理工具
+
+详细说明请查看各工具目录下的 README.md 文件。
