@@ -1,0 +1,196 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+CODEX_DIR="${HOME}/.codex"
+AUTH_DIR="${CODEX_DIR}/auth"
+
+print_help() {
+  cat <<'EOF'
+Usage:
+  codex-switch list
+  codex-switch <source>
+  codex-switch register <name>
+  codex-switch install [shell]
+
+Description:
+  Switch between different Codex authentication configurations.
+
+  Configurations are stored in ~/.codex/auth/<source>/
+  When switching, files from the source directory are copied to ~/.codex/
+
+Examples:
+  codex-switch list           # List available sources
+  codex-switch official       # Switch to 'official' source
+  codex-switch register new   # Create a new source directory
+  codex-switch install zsh    # Install shell completions
+EOF
+}
+
+list_sources() {
+  if [ ! -d "${AUTH_DIR}" ]; then
+    echo "No sources registered yet"
+    echo "Use 'codex-switch register <name>' to register a source"
+    return
+  fi
+
+  local sources=()
+  for entry in "${AUTH_DIR}"/*; do
+    [ -d "${entry}" ] && sources+=("$(basename "${entry}")")
+  done
+
+  if [ ${#sources[@]} -eq 0 ]; then
+    echo "No sources registered yet"
+    echo "Use 'codex-switch register <name>' to register a source"
+  else
+    echo "Available sources:"
+    for source in "${sources[@]}"; do
+      echo "  - ${source}"
+    done
+  fi
+}
+
+register_source() {
+  local name="$1"
+  local source_dir="${AUTH_DIR}/${name}"
+
+  if [ -d "${source_dir}" ]; then
+    echo "Source '${name}' already exists: ${source_dir}"
+    return
+  fi
+
+  mkdir -p "${source_dir}"
+  echo "✓ Registered source: ${name}"
+  echo "  Directory: ${source_dir}"
+  echo "  Place your auth.json and/or config.toml in this directory"
+}
+
+switch_source() {
+  local source="$1"
+  local source_dir="${AUTH_DIR}/${source}"
+
+  if [ ! -d "${source_dir}" ]; then
+    echo "Error: Source '${source}' not found" >&2
+    echo "Available sources:" >&2
+    for entry in "${AUTH_DIR}"/*; do
+      [ -d "${entry}" ] && echo "  - $(basename "${entry}")" >&2
+    done
+    return 1
+  fi
+
+  local copied=0
+
+  # Copy auth.json if exists
+  if [ -f "${source_dir}/auth.json" ]; then
+    cp "${source_dir}/auth.json" "${CODEX_DIR}/auth.json"
+    echo "✓ Copied auth.json"
+    ((copied++)) || true
+  fi
+
+  # Copy config.toml if exists
+  if [ -f "${source_dir}/config.toml" ]; then
+    cp "${source_dir}/config.toml" "${CODEX_DIR}/config.toml"
+    echo "✓ Copied config.toml"
+    ((copied++)) || true
+  fi
+
+  if [ ${copied} -eq 0 ]; then
+    echo "Warning: No auth.json or config.toml found in ${source_dir}"
+  else
+    echo "✓ Switched to source: ${source}"
+  fi
+}
+
+install_completions() {
+  local shell="${1:-zsh}"
+  local marker="# codex-switch completions"
+
+  case "${shell}" in
+    zsh)
+      local zshrc="${HOME}/.zshrc"
+      if grep -q "${marker}" "${zshrc}" 2>/dev/null; then
+        echo "Completions already installed in ${zshrc}"
+        return
+      fi
+      cat >> "${zshrc}" <<'EOF'
+
+# codex-switch completions
+_codex_switch_completions() {
+    local -a sources
+    if [[ -d ~/.codex/auth ]]; then
+        sources=(${(f)"$(ls -1 ~/.codex/auth 2>/dev/null)"})
+    fi
+    _describe 'source' sources
+}
+compdef _codex_switch_completions codex-switch
+EOF
+      echo "✓ Completions installed to ${zshrc}"
+      echo "  Run 'source ~/.zshrc' to activate"
+      ;;
+    bash)
+      local bashrc="${HOME}/.bashrc"
+      if grep -q "${marker}" "${bashrc}" 2>/dev/null; then
+        echo "Completions already installed in ${bashrc}"
+        return
+      fi
+      cat >> "${bashrc}" <<'EOF'
+
+# codex-switch completions
+_codex_switch_completions() {
+    local cur="${COMP_WORDS[COMP_CWORD]}"
+    local sources=""
+    if [[ -d ~/.codex/auth ]]; then
+        sources=$(ls -1 ~/.codex/auth 2>/dev/null)
+    fi
+    COMPREPLY=($(compgen -W "$sources" -- "$cur"))
+}
+complete -F _codex_switch_completions codex-switch
+EOF
+      echo "✓ Completions installed to ${bashrc}"
+      echo "  Run 'source ~/.bashrc' to activate"
+      ;;
+    fish)
+      local fish_comp="${HOME}/.config/fish/completions/codex-switch.fish"
+      mkdir -p "$(dirname "${fish_comp}")"
+      cat > "${fish_comp}" <<'EOF'
+# codex-switch completions
+complete -c codex-switch -f
+complete -c codex-switch -a "(ls ~/.codex/auth 2>/dev/null)"
+EOF
+      echo "✓ Completions installed to ${fish_comp}"
+      ;;
+    *)
+      echo "Error: Unsupported shell: ${shell}" >&2
+      echo "Supported shells: zsh, bash, fish" >&2
+      return 1
+      ;;
+  esac
+}
+
+if [ $# -eq 0 ]; then
+  print_help
+  exit 1
+fi
+
+case "$1" in
+  -h|--help)
+    print_help
+    exit 0
+    ;;
+  list)
+    list_sources
+    ;;
+  register)
+    if [ $# -lt 2 ]; then
+      echo "Error: Missing source name" >&2
+      echo "Usage: codex-switch register <name>" >&2
+      exit 1
+    fi
+    register_source "$2"
+    ;;
+  install)
+    install_completions "${2:-zsh}"
+    ;;
+  *)
+    switch_source "$1"
+    ;;
+esac

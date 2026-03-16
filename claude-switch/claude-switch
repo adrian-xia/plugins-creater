@@ -1,68 +1,165 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SOURCE_PATH="${BASH_SOURCE[0]}"
-while [ -L "${SOURCE_PATH}" ]; do
-  SOURCE_DIR="$(cd -P "$(dirname "${SOURCE_PATH}")" && pwd)"
-  SOURCE_PATH="$(readlink "${SOURCE_PATH}")"
-  case "${SOURCE_PATH}" in
-    /*) ;;
-    *) SOURCE_PATH="${SOURCE_DIR}/${SOURCE_PATH}" ;;
-  esac
-done
-
-SCRIPT_DIR="$(cd -P "$(dirname "${SOURCE_PATH}")" && pwd)"
-TOOL_DIR="${SCRIPT_DIR}"
-PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-
-DEFAULT_SETTINGS_PATH="${HOME}/.claude/settings.json"
-DEFAULT_LOCAL_CONFIG="${TOOL_DIR}/config/profiles.local.json"
-DEFAULT_SHARED_CONFIG="${TOOL_DIR}/config/profiles.json"
-
-ACTION=""
-PROFILE=""
-SETTINGS_PATH="${DEFAULT_SETTINGS_PATH}"
-CONFIG_PATH_OVERRIDE=""
+CLAUDE_DIR="${HOME}/.claude"
+AUTH_DIR="${CLAUDE_DIR}/auth"
 
 print_help() {
   cat <<'EOF'
 Usage:
-  claude-switch list [--config <path>]
-  claude-switch use <profile> [--settings <path>] [--config <path>]
-  claude-switch <profile> [--settings <path>] [--config <path>]
+  claude-switch list
+  claude-switch <profile>
+  claude-switch register <name>
+  claude-switch install [shell]
 
 Description:
-  Switches ANTHROPIC_BASE_URL and ANTHROPIC_AUTH_TOKEN in ~/.claude/settings.json
-  using preconfigured profiles.
+  Switch between different Claude configurations.
+
+  Configurations are stored in ~/.claude/auth/<profile>/
+  When switching, files from the profile directory are copied to ~/.claude/
 
 Examples:
-  claude-switch list
-  claude-switch official
-  claude-switch use proxy-main --settings /tmp/settings.json
-  claude-switch use official --config ./config/claude-switch/profiles.local.json
+  claude-switch list           # List available profiles
+  claude-switch itptg          # Switch to 'itptg' profile
+  claude-switch register new   # Create a new profile directory
+  claude-switch install zsh    # Install shell completions
 EOF
 }
 
-fail() {
-  printf 'Error: %s\n' "$1" >&2
-  exit 1
-}
-
-resolve_config_path() {
-  if [ -n "${CONFIG_PATH_OVERRIDE}" ]; then
-    printf '%s' "${CONFIG_PATH_OVERRIDE}"
+list_profiles() {
+  if [ ! -d "${AUTH_DIR}" ]; then
+    echo "No profiles directory found: ${AUTH_DIR}"
+    echo "Use 'claude-switch register <name>' to create a profile"
     return
   fi
 
-  if [ -f "${DEFAULT_LOCAL_CONFIG}" ]; then
-    printf '%s' "${DEFAULT_LOCAL_CONFIG}"
-    return
-  fi
+  local profiles=()
+  for entry in "${AUTH_DIR}"/*; do
+    [ -d "${entry}" ] && profiles+=("$(basename "${entry}")")
+  done
 
-  printf '%s' "${DEFAULT_SHARED_CONFIG}"
+  if [ ${#profiles[@]} -eq 0 ]; then
+    echo "No profiles found in ${AUTH_DIR}"
+    echo "Use 'claude-switch register <name>' to create a profile"
+  else
+    echo "Available profiles:"
+    for profile in "${profiles[@]}"; do
+      echo "  - ${profile}"
+    done
+  fi
 }
 
-if [ "$#" -eq 0 ]; then
+register_profile() {
+  local name="$1"
+  local profile_dir="${AUTH_DIR}/${name}"
+
+  if [ -d "${profile_dir}" ]; then
+    echo "Profile '${name}' already exists: ${profile_dir}"
+    return 1
+  fi
+
+  mkdir -p "${profile_dir}"
+  echo "✓ Registered profile: ${name}"
+  echo "  Directory: ${profile_dir}"
+  echo "  Place your configuration files (settings.json, etc.) in this directory"
+}
+
+switch_profile() {
+  local profile="$1"
+  local profile_dir="${AUTH_DIR}/${profile}"
+
+  if [ ! -d "${profile_dir}" ]; then
+    echo "Error: Profile '${profile}' not found" >&2
+    echo "Available profiles:" >&2
+    for entry in "${AUTH_DIR}"/*; do
+      [ -d "${entry}" ] && echo "  - $(basename "${entry}")" >&2
+    done
+    return 1
+  fi
+
+  local copied=0
+  for file in "${profile_dir}"/*; do
+    [ -f "${file}" ] || continue
+    local filename="$(basename "${file}")"
+    cp "${file}" "${CLAUDE_DIR}/${filename}"
+    echo "✓ Copied ${filename}"
+    ((copied++)) || true
+  done
+
+  if [ ${copied} -eq 0 ]; then
+    echo "Warning: No files found in ${profile_dir}"
+  else
+    echo "✓ Switched to profile: ${profile}"
+  fi
+}
+
+install_completions() {
+  local shell="${1:-zsh}"
+  local marker="# claude-switch completions"
+
+  case "${shell}" in
+    zsh)
+      local zshrc="${HOME}/.zshrc"
+      if grep -q "${marker}" "${zshrc}" 2>/dev/null; then
+        echo "Completions already installed in ${zshrc}"
+        return
+      fi
+      cat >> "${zshrc}" <<'EOF'
+
+# claude-switch completions
+_claude_switch_completions() {
+    local -a profiles
+    if [[ -d ~/.claude/auth ]]; then
+        profiles=(${(f)"$(ls -1 ~/.claude/auth 2>/dev/null)"})
+    fi
+    _describe 'profile' profiles
+}
+compdef _claude_switch_completions claude-switch
+EOF
+      echo "✓ Completions installed to ${zshrc}"
+      echo "  Run 'source ~/.zshrc' to activate"
+      ;;
+    bash)
+      local bashrc="${HOME}/.bashrc"
+      if grep -q "${marker}" "${bashrc}" 2>/dev/null; then
+        echo "Completions already installed in ${bashrc}"
+        return
+      fi
+      cat >> "${bashrc}" <<'EOF'
+
+# claude-switch completions
+_claude_switch_completions() {
+    local cur="${COMP_WORDS[COMP_CWORD]}"
+    local profiles=""
+    if [[ -d ~/.claude/auth ]]; then
+        profiles=$(ls -1 ~/.claude/auth 2>/dev/null)
+    fi
+    COMPREPLY=($(compgen -W "$profiles" -- "$cur"))
+}
+complete -F _claude_switch_completions claude-switch
+EOF
+      echo "✓ Completions installed to ${bashrc}"
+      echo "  Run 'source ~/.bashrc' to activate"
+      ;;
+    fish)
+      local fish_comp="${HOME}/.config/fish/completions/claude-switch.fish"
+      mkdir -p "$(dirname "${fish_comp}")"
+      cat > "${fish_comp}" <<'EOF'
+# claude-switch completions
+complete -c claude-switch -f
+complete -c claude-switch -a "(ls ~/.claude/auth 2>/dev/null)"
+EOF
+      echo "✓ Completions installed to ${fish_comp}"
+      ;;
+    *)
+      echo "Error: Unsupported shell: ${shell}" >&2
+      echo "Supported shells: zsh, bash, fish" >&2
+      return 1
+      ;;
+  esac
+}
+
+if [ $# -eq 0 ]; then
   print_help
   exit 1
 fi
@@ -73,142 +170,20 @@ case "$1" in
     exit 0
     ;;
   list)
-    ACTION="list"
-    shift
+    list_profiles
     ;;
-  use)
-    ACTION="use"
-    shift
-    if [ "$#" -eq 0 ]; then
-      fail "Missing profile. Use 'claude-switch list' to view profiles."
+  register)
+    if [ $# -lt 2 ]; then
+      echo "Error: Missing profile name" >&2
+      echo "Usage: claude-switch register <name>" >&2
+      exit 1
     fi
-    PROFILE="$1"
-    shift
+    register_profile "$2"
+    ;;
+  install)
+    install_completions "${2:-zsh}"
     ;;
   *)
-    ACTION="use"
-    PROFILE="$1"
-    shift
+    switch_profile "$1"
     ;;
 esac
-
-while [ "$#" -gt 0 ]; do
-  case "$1" in
-    --settings)
-      shift
-      if [ "$#" -eq 0 ]; then
-        fail "Missing value after --settings"
-      fi
-      SETTINGS_PATH="$1"
-      shift
-      ;;
-    --config)
-      shift
-      if [ "$#" -eq 0 ]; then
-        fail "Missing value after --config"
-      fi
-      CONFIG_PATH_OVERRIDE="$1"
-      shift
-      ;;
-    -h|--help)
-      print_help
-      exit 0
-      ;;
-    *)
-      fail "Unknown argument: $1"
-      ;;
-  esac
-done
-
-CONFIG_PATH="$(resolve_config_path)"
-
-if [ ! -f "${CONFIG_PATH}" ]; then
-  fail "Config file not found: ${CONFIG_PATH}"
-fi
-
-if [ "${ACTION}" = "list" ]; then
-  python3 - "${CONFIG_PATH}" <<'PY'
-import json
-import pathlib
-import sys
-
-config_path = pathlib.Path(sys.argv[1])
-
-try:
-    config = json.loads(config_path.read_text(encoding="utf-8"))
-except json.JSONDecodeError as exc:
-    raise SystemExit(f"Invalid JSON in config file: {config_path} ({exc})")
-
-profiles = config.get("profiles")
-if not isinstance(profiles, dict) or not profiles:
-    raise SystemExit(f"No profiles found in config file: {config_path}")
-
-for profile in sorted(profiles.keys()):
-    print(profile)
-PY
-  exit 0
-fi
-
-python3 - "${CONFIG_PATH}" "${PROFILE}" "${SETTINGS_PATH}" <<'PY'
-import json
-import pathlib
-import sys
-
-config_path = pathlib.Path(sys.argv[1])
-profile_name = sys.argv[2]
-settings_path = pathlib.Path(sys.argv[3])
-
-try:
-    config = json.loads(config_path.read_text(encoding="utf-8"))
-except json.JSONDecodeError as exc:
-    raise SystemExit(f"Invalid JSON in config file: {config_path} ({exc})")
-
-profiles = config.get("profiles")
-if not isinstance(profiles, dict):
-    raise SystemExit(f"Invalid config format: missing object field 'profiles' in {config_path}")
-
-profile = profiles.get(profile_name)
-if not isinstance(profile, dict):
-    known = ", ".join(sorted(profiles.keys())) or "(none)"
-    raise SystemExit(f"Unknown profile '{profile_name}'. Available: {known}")
-
-base_url = profile.get("ANTHROPIC_BASE_URL")
-auth_token = profile.get("ANTHROPIC_AUTH_TOKEN")
-
-if not isinstance(base_url, str) or not base_url:
-    raise SystemExit(
-        f"Profile '{profile_name}' missing required string field 'ANTHROPIC_BASE_URL'"
-    )
-
-if not isinstance(auth_token, str) or not auth_token:
-    raise SystemExit(
-        f"Profile '{profile_name}' missing required string field 'ANTHROPIC_AUTH_TOKEN'"
-    )
-
-if settings_path.exists():
-    try:
-        settings = json.loads(settings_path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as exc:
-        raise SystemExit(f"Invalid JSON in settings file: {settings_path} ({exc})")
-
-    if not isinstance(settings, dict):
-        raise SystemExit(f"Settings file root must be an object: {settings_path}")
-else:
-    settings = {}
-
-env = settings.get("env")
-if env is None or not isinstance(env, dict):
-    env = {}
-
-env["ANTHROPIC_BASE_URL"] = base_url
-env["ANTHROPIC_AUTH_TOKEN"] = auth_token
-settings["env"] = env
-
-settings_path.parent.mkdir(parents=True, exist_ok=True)
-settings_path.write_text(json.dumps(settings, indent=2) + "\n", encoding="utf-8")
-
-print(f"Switched to profile: {profile_name}")
-print(f"Updated file: {settings_path}")
-print(f"ANTHROPIC_BASE_URL: {base_url}")
-print("ANTHROPIC_AUTH_TOKEN: [hidden]")
-PY

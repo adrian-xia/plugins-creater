@@ -1,17 +1,11 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
-set -e
+INSTALL_DIR="${HOME}/.local/bin"
 
-echo "Building codex-switch..."
-cargo build --release
+mkdir -p "${INSTALL_DIR}"
 
-echo "Installing to /usr/local/bin..."
-sudo cp target/release/codex-switch /usr/local/bin/
+cp "$(dirname "$0")/codex-switch" "${INSTALL_DIR}/codex-switch"
+chmod +x "${INSTALL_DIR}/codex-switch"
 
-echo "✓ Installation complete!"
-echo ""
-echo "Next steps:"
-echo "1. Register a source: codex-switch register official"
-echo "2. Add your config files to ~/.codex/auth/official/"
-echo "3. Switch to it: codex-switch official"
-echo "4. Install completions: codex-switch install zsh >> ~/.zshrc"
+echo "✓ Installed codex-switch to ${INSTALL_DIR}/"

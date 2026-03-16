@@ -5,46 +5,39 @@
 ## 功能
 
 - 快速切换不同的 Claude 配置预设
-- 支持自定义配置文件路径
-- 基于 JSON 配置文件管理多个预设
+- 配置存储在 `~/.claude/auth/<profile>/` 目录下
+- 切换时将配置文件复制到 `~/.claude/` 目录
 
 ## 使用方法
 
 ```bash
 # 列出所有可用预设
-./claude-switch list
+claude-switch list
 
 # 切换到指定预设
-./claude-switch official
-./claude-switch use proxy-main
+claude-switch itptg
 
-# 使用自定义配置文件
-./claude-switch use official --config ./config/profiles.local.json
+# 注册新预设
+claude-switch register new-profile
 
-# 使用自定义 settings 路径
-./claude-switch use official --settings /tmp/settings.json
+# 安装 shell 自动补全
+claude-switch install zsh    # 支持 zsh, bash, fish
 ```
 
-## 配置文件
+## 配置结构
 
-配置文件位于 `config/profiles.json`，格式如下：
-
-```json
-{
-  "profiles": {
-    "official": {
-      "ANTHROPIC_BASE_URL": "https://api.anthropic.com",
-      "ANTHROPIC_AUTH_TOKEN": "your-token-here"
-    },
-    "proxy-main": {
-      "ANTHROPIC_BASE_URL": "https://proxy.example.com",
-      "ANTHROPIC_AUTH_TOKEN": "your-proxy-token"
-    }
-  }
-}
+```
+~/.claude/
+├── settings.json          # 当前使用的配置（会被覆盖）
+├── auth/
+│   ├── itptg/
+│   │   └── settings.json  # itptg 预设的配置
+│   └── yunyi/
+│       └── settings.json # yunyi 预设的配置
+│   └── ...
 ```
 
-支持本地配置文件 `config/profiles.local.json`（优先级更高，不会被提交到 git）。
+切换预设时，`auth/<profile>/` 目录下的所有文件会被复制到 `~/.claude/` 目录。
 
 ## 安装
 
