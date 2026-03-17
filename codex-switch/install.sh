@@ -9,3 +9,5 @@ cp "$(dirname "$0")/codex-switch" "${INSTALL_DIR}/codex-switch"
 chmod +x "${INSTALL_DIR}/codex-switch"
 
 echo "✓ Installed codex-switch to ${INSTALL_DIR}/"
+echo ""
+echo "Run 'codex-switch install zsh' to enable shell completions"

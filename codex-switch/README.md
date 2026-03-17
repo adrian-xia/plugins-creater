@@ -1,6 +1,6 @@
 # codex-switch
 
-用于切换 codex 认证配置的命令行工具。
+用于切换 codex 认证配置的命令行工具（Bash 实现）。
 
 ## 功能
 
@@ -43,8 +43,18 @@ codex-switch install zsh    # 支持 zsh, bash, fish
 
 ## 安装
 
-将工具链接到系统路径：
+使用安装脚本：
 
 ```bash
-ln -s $(pwd)/codex-switch ~/.local/bin/codex-switch
+./install.sh
+# 或手动安装
+cp codex-switch ~/.local/bin/codex-switch
+chmod +x ~/.local/bin/codex-switch
+```
+
+安装 shell 自动补全：
+
+```bash
+codex-switch install zsh    # 支持 zsh, bash, fish
+source ~/.zshrc
 ```

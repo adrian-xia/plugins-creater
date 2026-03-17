@@ -41,8 +41,18 @@ claude-switch install zsh    # 支持 zsh, bash, fish
 
 ## 安装
 
-将工具链接到系统路径：
+使用安装脚本：
 
 ```bash
-ln -s $(pwd)/claude-switch /usr/local/bin/claude-switch
+./install.sh
+# 或手动安装
+cp claude-switch ~/.local/bin/claude-switch
+chmod +x ~/.local/bin/claude-switch
+```
+
+安装 shell 自动补全：
+
+```bash
+claude-switch install zsh    # 支持 zsh, bash, fish
+source ~/.zshrc
 ```
