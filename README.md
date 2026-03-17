@@ -25,6 +25,13 @@ Docker 测试容器管理工具（Bash + Docker）
 
 ---
 
+### [sing-box-installer](./sing-box-installer/)
+Sing-box 一键安装脚本 - VLESS + Reality 单协议方案（Bash）
+
+→ [查看文档](./sing-box-installer/README.md)
+
+---
+
 ## 设计原则
 
 - **独立完整**：每个工具目录都是一个完整的项目
